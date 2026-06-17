@@ -10,9 +10,9 @@ AI 인프라의 핵심인 **엔비디아(NVIDIA)**의 데이터센터 매출 데
 1. **프로젝트 개요 및 추이:** 연도별 NVIDIA 매출과 Microsoft의 탄소 배출량 데이터를 선 그래프 및 복합 차트로 시각화하여 변화 추이를 한눈에 살펴봅니다.
 2. **상관관계 분석:** 산점도(Scatter plot)와 추세선, 피어슨 상관계수 분석을 통해 두 지표 간의 직접적인 연관성을 검증합니다.
 
-Microsoft 온실가스 배출량 데이터: TraceNable - Microsoft GHG Emissions
+Microsoft 온실가스 배출량 데이터: https://tracenable.com/company/microsoft/ghg-emissions
 
-NVIDIA 분기별 실적 데이터: NVIDIA Investor Relations - Quarterly Results
+NVIDIA 분기별 실적 데이터: https://investor.nvidia.com/financial-info/quarterly-results/default.aspx 
 
 ## 🛠️ 설치 및 실행 방법
 
