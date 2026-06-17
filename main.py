@@ -6,37 +6,32 @@ import plotly.graph_objects as go
 # 페이지 기본 설정
 st.set_page_config(page_title="AI와 탄소 배출량 분석", page_icon="🌱", layout="wide")
 
-# 데이터 불러오기 및 전처리 (캐싱을 통해 속도 향상)
 @st.cache_data
 def load_data():
-    # 1. 엔비디아 실적 데이터 처리
-    # (실제 파일 경로에 맞게 파일명을 수정해야 할 수 있습니다)
-    nvidia_df = pd.read_csv("엔비디아실적보고서.csv")
+    # 이제 바뀐 간단한 파일명을 사용합니다.
+    nvidia_df = pd.read_csv("nvidia.csv")
+    ms_df = pd.read_csv("msft.csv")
     
-    # 'Q1 FY19' 문자열에서 연도 추출 (예: 19 -> 2019)
+    # 엔비디아 데이터 전처리
     nvidia_df['Year'] = nvidia_df['NVIDIA 회계분기'].str.extract(r'FY(\d+)').astype(int) + 2000
-    
-    # 연도별 데이터센터 매출 합산
     nvidia_yearly = nvidia_df.groupby('Year')['데이터센터 매출 (백만 달러)'].sum().reset_index()
-    nvidia_yearly.columns = ['Year', 'Nvidia_Revenue_M']
-
-    # 2. 마이크로소프트 탄소 배출량 데이터 처리
-    ms_df = pd.read_csv("tracenable-ghg-emissions-2019-2024-microsoft-20260617.xlsx - Sheet1.csv")
     
-    # 연도별(reporting_period) 탄소 배출량 총합 계산
+    # 마이크로소프트 데이터 전처리
+    # ms_df의 'reporting_period' 컬럼을 기준으로 연도별 합산
     ms_yearly = ms_df.groupby('reporting_period')['value'].sum().reset_index()
     ms_yearly.columns = ['Year', 'MSFT_Emissions']
 
-    # 3. 데이터 병합 (연도를 기준으로 교집합)
+    # 병합
     merged_df = pd.merge(nvidia_yearly, ms_yearly, on='Year', how='inner')
     return nvidia_yearly, ms_yearly, merged_df
 
-# 데이터 로드
+# 데이터 로드 시도
 try:
     nvidia_yearly, ms_yearly, merged_df = load_data()
-except Exception as e:
-    st.error("데이터 파일을 불러오는 데 실패했습니다. 파일 이름과 경로를 확인해주세요.")
+except FileNotFoundError:
+    st.error("파일을 찾을 수 없습니다. 'nvidia.csv'와 'msft.csv' 파일이 같은 폴더에 있는지 확인해주세요.")
     st.stop()
+
 
 # --- 사이드바 네비게이션 (2개 이상의 페이지 구성) ---
 st.sidebar.title("데이터 분석 메뉴")
