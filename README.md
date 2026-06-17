@@ -62,7 +62,7 @@ AI 하드웨어 시장을 선도하는 **NVIDIA의 데이터센터 매출**을 '
 ## 🌐 5. 자료 출처
 
 * **Microsoft 온실가스 배출량 데이터:** https://tracenable.com/company/microsoft/ghg-emissions
-* **NVIDIA 분기별 실적 데이터:https://investor.nvidia.com/financial-info/quarterly-results/default.aspx
+* **NVIDIA 분기별 실적 데이터:** https://investor.nvidia.com/financial-info/quarterly-results/default.aspx
 
 역할 분담 -
 김은택 : 데이터 수집, 주제 작성, 데이터 전처리, 사이트 제작
