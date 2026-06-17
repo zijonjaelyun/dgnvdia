@@ -8,7 +8,7 @@ import numpy as np
 st.set_page_config(page_title="NVIDIA Revenue vs MSFT Emissions", layout="wide")
 
 st.title("엔비디아 매출과 마이크로소프트 탄소 배출량 상관관계 분석")
-st.write("2019년부터 2024년까지 엔비디아의 데이터센터 매출과 마이크로소프트의 총 탄소 배출량 간의 상관관계를 분석하는 대시보드입니다. **(현재 파일 대신 임의의 가상 데이터를 사용하고 있습니다.)**")
+st.write("2019년부터 2024년까지 엔비디아의 데이터센터 매출과 마이크로소프트의 총 탄소 배출량 간의 상관관계를 분석하는 대시보드입니다. ")
 
 # 임의의 데이터 생성 함수
 @st.cache_data
@@ -36,7 +36,7 @@ def load_dummy_data():
 # 데이터 로드
 nvidia_yearly, msft_yearly, merged_df = load_dummy_data()
 
-st.subheader("데이터 미리보기 (가상 데이터)")
+st.subheader("데이터 미리보기")
 col1, col2 = st.columns(2)
 with col1:
     st.write("NVIDIA 데이터센터 연간 매출 (백만 달러)")
