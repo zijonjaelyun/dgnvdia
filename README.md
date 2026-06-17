@@ -1,19 +1,21 @@
-# NVIDIA Revenue vs Microsoft GHG Emissions Analyzer
+# 🌱 AI 발전과 탄소 배출량 상관관계 분석 프로젝트
 
-## 프로젝트 소개
-본 프로젝트는 **2019년부터 2024년까지 엔비디아(NVIDIA)의 데이터센터 매출량**과 **마이크로소프트(Microsoft)의 총 탄소 배출량** 간의 상관관계를 시각화하고 분석하는 Streamlit 웹 애플리케이션입니다. 
-AI 산업의 발전으로 인한 데이터센터의 폭발적인 성장과 그에 따른 빅테크 기업의 환경적 영향(탄소 배출량) 변화 추이를 살펴보고 통계적 상관관계를 도출합니다.
+AI 인프라의 핵심인 **엔비디아(NVIDIA)**의 데이터센터 매출 데이터와 AI 클라우드 주요 제공자인 **마이크로소프트(Microsoft)**의 온실가스(GHG) 배출량 데이터를 결합하여 유의미한 인사이트를 도출합니다.
 
-## 개발자 역할 (팀원)
-* **김은택**: 
-  - 데이터 전처리 파이프라인 구축 (회계연도 변환 및 연도별 그룹핑)
-  - 두 기업 데이터셋 병합 및 피어슨 상관계수(Pearson Correlation) 도출 알고리즘 작성
-* **신재륜**: 
-  - Streamlit 대시보드 레이아웃 및 UI/UX 설계
-  - Matplotlib, Seaborn을 활용한 데이터 시각화 구현 (이중 Y축 꺾은선 그래프, 산점도 및 선형 회귀선)
+김은택 : 데이터 수집, 주제 작성, 데이터 전처리, 사이트 제작
+신재륜 : 데이터 탐색, 주제 탐색
 
-## 설치 및 실행 방법
+## 🚀 프로젝트 주요 기능
+1. **프로젝트 개요 및 추이:** 연도별 NVIDIA 매출과 Microsoft의 탄소 배출량 데이터를 선 그래프 및 복합 차트로 시각화하여 변화 추이를 한눈에 살펴봅니다.
+2. **상관관계 분석:** 산점도(Scatter plot)와 추세선, 피어슨 상관계수 분석을 통해 두 지표 간의 직접적인 연관성을 검증합니다.
 
-1. 필수 패키지 설치
+Microsoft 온실가스 배출량 데이터: TraceNable - Microsoft GHG Emissions
+
+NVIDIA 분기별 실적 데이터: NVIDIA Investor Relations - Quarterly Results
+
+## 🛠️ 설치 및 실행 방법
+
+1. 리포지토리를 클론합니다.
 ```bash
-pip install -r requirements.txt
+git clone [https://github.com/본인계정/리포지토리이름.git](https://github.com/본인계정/리포지토리이름.git)
+cd 리포지토리이름
