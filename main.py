@@ -2,41 +2,56 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="AI & 탄소 배출 분석", layout="wide")
+# 페이지 기본 설정
+st.set_page_config(page_title="AI & 탄소 배출 분석 리포트", page_icon="🌱", layout="wide")
 
-# (이전의 read_csv_robust 함수와 load_and_process 함수는 그대로 사용)
+# --- 데이터 불러오기 함수 (자동 인코딩 탐지) ---
+def read_csv_robust(filepath):
+    encodings = ['utf-8', 'utf-8-sig', 'cp949', 'euc-kr', 'latin1']
+    for enc in encodings:
+        try:
+            return pd.read_csv(filepath, encoding=enc)
+        except UnicodeDecodeError:
+            continue
+    st.error(f"{filepath} 파일을 읽는 데 실패했습니다.")
+    st.stop()
 
-# --- 상단 요약 카드 (Metric Cards) ---
-st.title("🌱 AI 기술 성장과 환경적 비용: 종합 분석 리포트")
-st.markdown("데이터센터의 비약적 성장과 기업의 환경 발자국을 시각화합니다.")
+@st.cache_data
+def load_and_process():
+    nvidia_df = read_csv_robust("nvidia.csv")
+    ms_df = read_csv_robust("msft.csv")
+
+    nvidia_df['Year'] = nvidia_df['NVIDIA 회계분기'].str.extract(r'FY(\d+)').astype(int) + 2000
+    nvidia_yearly = nvidia_df.groupby('Year')['데이터센터 매출 (백만 달러)'].sum().reset_index()
+
+    ms_yearly = ms_df.groupby('reporting_period')['value'].sum().reset_index()
+    ms_yearly.columns = ['Year', 'MSFT_Emissions']
+
+    merged_df = pd.merge(nvidia_yearly, ms_yearly, on='Year', how='inner')
+    return nvidia_yearly, ms_yearly, merged_df
 
 nvidia_yearly, ms_yearly, merged_df = load_and_process()
 
-# 최근 매출과 탄소 배출량을 하이라이트
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.metric("최근 NVIDIA 매출", f"${nvidia_yearly['데이터센터 매출 (백만 달러)'].iloc[-1]:,.0f}M")
-with col2:
-    st.metric("최근 MS 탄소 배출량", f"{ms_yearly['MSFT_Emissions'].iloc[-1]:,.0f} mtCO2e")
-with col3:
-    st.metric("데이터 가용 연도", f"{len(merged_df)}년")
+# --- 첫 번째 페이지 화면 구성 ---
+st.title("📊 AI 기술 성장과 환경적 비용 추이")
+st.markdown("""
+**[교과 융합 프로젝트: 정보과학 × 생태와 환경]** 왼쪽 사이드바를 통해 **1. 지표 추이 분석(현재 페이지)**과 **2. 상관관계 분석**을 확인하실 수 있습니다.
+""")
 
 st.divider()
+st.subheader("📈 연도별 주요 지표 변화")
 
-# --- 내용 배치: 데이터 밀도 높이기 ---
-c1, c2 = st.columns([0.6, 0.4])
-with c1:
-    st.subheader("📊 연간 지표 추이 시각화")
-    # 두 그래프를 한 번에 보여주기 위해 탭 활용
-    tab1, tab2 = st.tabs(["NVIDIA 매출", "Microsoft 탄소 배출"])
-    with tab1:
-        fig = px.bar(nvidia_yearly, x='Year', y='데이터센터 매출 (백만 달러)', color='데이터센터 매출 (백만 달러)')
-        st.plotly_chart(fig, use_container_width=True)
-    with tab2:
-        fig = px.area(ms_yearly, x='Year', y='MSFT_Emissions', color_discrete_sequence=['red'])
-        st.plotly_chart(fig, use_container_width=True)
+col1, col2 = st.columns(2)
+with col1:
+    fig1 = px.line(nvidia_yearly, x='Year', y='데이터센터 매출 (백만 달러)', 
+                   title="NVIDIA 데이터센터 연간 매출 추이", markers=True)
+    fig1.update_traces(line_color="green")
+    st.plotly_chart(fig1, use_container_width=True)
+    
+with col2:
+    fig2 = px.line(ms_yearly, x='Year', y='MSFT_Emissions', 
+                   title="Microsoft 총 온실가스 배출량 추이", markers=True)
+    fig2.update_traces(line_color="red")
+    st.plotly_chart(fig2, use_container_width=True)
 
-with c2:
-    st.subheader("📋 데이터셋 상세 정보")
-    st.dataframe(merged_df.style.highlight_max(axis=0), use_container_width=True)
-    st.caption("※ 연도별 합산된 데이터 요약 테이블입니다.")
+st.info("💡 **그래프 해석:** 두 그래프 모두 시간이 지남에 따라(특히 AI가 본격화된 최근 연도에) 우상향하는 모습을 보이고 있습니다. 정확한 연관성은 다음 페이지에서 확인하세요.")
