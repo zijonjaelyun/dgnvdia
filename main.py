@@ -1,249 +1,83 @@
-import os
-
-import numpy as np
-import pandas as pd
-import plotly.graph_objects as go
 import streamlit as st
-from scipy import stats
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 
-# ----------------------------------------------------------------------------
-# 기본 설정
-# ----------------------------------------------------------------------------
-st.set_page_config(
-    page_title="NVIDIA 매출 vs Microsoft 탄소 배출량 상관관계 분석",
-    page_icon="📊",
-    layout="wide",
-)
+# 페이지 기본 설정
+st.set_page_config(page_title="NVIDIA Revenue vs MSFT Emissions", layout="wide")
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+st.title("엔비디아 매출과 마이크로소프트 탄소 배출량 상관관계 분석")
+st.write("2019년부터 2024년까지 엔비디아의 데이터센터 매출과 마이크로소프트의 총 탄소 배출량 간의 상관관계를 분석하는 대시보드입니다. **(현재 파일 대신 임의의 가상 데이터를 사용하고 있습니다.)**")
 
-MS_METRIC_LABELS = {
-    "scope1_tco2e": "Scope 1 (직접 배출)",
-    "scope2_market_based_tco2e": "Scope 2 - Market-based (간접 배출)",
-    "scope2_location_based_tco2e": "Scope 2 - Location-based (간접 배출)",
-    "scope3_tco2e": "Scope 3 (기타 간접 배출)",
-    "total_tco2e": "총 배출량 (Scope1+2(Market)+3)",
-}
-
-
-# ----------------------------------------------------------------------------
-# 데이터 로드
-# ----------------------------------------------------------------------------
+# 임의의 데이터 생성 함수
 @st.cache_data
-def load_data():
-    nvidia_q = pd.read_csv(os.path.join(DATA_DIR, "nvidia_revenue.csv"))
-    ms_annual = pd.read_csv(os.path.join(DATA_DIR, "microsoft_emissions.csv"))
+def load_dummy_data():
+    years = [2019, 2020, 2021, 2022, 2023, 2024]
+    
+    # 1. 임의의 NVIDIA 연간 데이터센터 매출 (단위: 백만 달러, 최근 급성장하는 추세 반영)
+    nvidia_revenue = [2983, 6696, 10613, 15005, 47525, 104000]
+    nvidia_yearly = pd.DataFrame({
+        'Year': years,
+        '데이터센터 매출 (백만 달러)': nvidia_revenue
+    })
+    
+    # 2. 임의의 Microsoft 연간 총 탄소 배출량 (단위: mtCO2e, 점진적으로 증가하는 추세 반영)
+    msft_emissions = [117956, 120500, 125000, 131200, 139000, 146500]
+    msft_yearly = pd.DataFrame({
+        'Year': years,
+        'Total Emissions (mtCO2e)': msft_emissions
+    })
+    
+    # 3. 데이터 병합
+    merged_df = pd.merge(nvidia_yearly, msft_yearly, on='Year', how='inner')
+    return nvidia_yearly, msft_yearly, merged_df
 
-    # NVIDIA 분기 데이터 -> 회계연도(FY) 합산
-    nvidia_annual = (
-        nvidia_q.groupby("fiscal_year", as_index=False)["revenue_million_usd"]
-        .sum()
-        .rename(columns={"fiscal_year": "year", "revenue_million_usd": "nvidia_datacenter_revenue_musd"})
-    )
+# 데이터 로드
+nvidia_yearly, msft_yearly, merged_df = load_dummy_data()
 
-    merged = pd.merge(nvidia_annual, ms_annual, on="year", how="inner").sort_values("year")
-    return nvidia_q, nvidia_annual, ms_annual, merged
+st.subheader("데이터 미리보기 (가상 데이터)")
+col1, col2 = st.columns(2)
+with col1:
+    st.write("NVIDIA 데이터센터 연간 매출 (백만 달러)")
+    st.dataframe(nvidia_yearly.set_index('Year'))
+with col2:
+    st.write("Microsoft 연간 총 탄소 배출량 (mtCO2e)")
+    st.dataframe(msft_yearly.set_index('Year'))
 
+st.subheader("병합된 데이터 (2019-2024)")
+st.dataframe(merged_df.set_index('Year'))
 
-nvidia_q, nvidia_annual, ms_annual, merged = load_data()
+st.subheader("매출과 탄소 배출량 추이 비교")
+fig, ax1 = plt.subplots(figsize=(10, 5))
 
-# ----------------------------------------------------------------------------
-# 사이드바
-# ----------------------------------------------------------------------------
-st.sidebar.header("⚙️ 분석 설정")
+# NVIDIA 매출 그래프 (왼쪽 Y축)
+color = 'tab:blue'
+ax1.set_xlabel('Year')
+ax1.set_ylabel('NVIDIA Data Center Revenue ($M)', color=color)
+ax1.plot(merged_df['Year'], merged_df['데이터센터 매출 (백만 달러)'], marker='o', color=color, label='NVIDIA Revenue')
+ax1.tick_params(axis='y', labelcolor=color)
 
-ms_metric = st.sidebar.selectbox(
-    "Microsoft 탄소 배출 지표 선택",
-    options=list(MS_METRIC_LABELS.keys()),
-    format_func=lambda x: MS_METRIC_LABELS[x],
-    index=4,
-)
+# Microsoft 탄소 배출량 그래프 (오른쪽 Y축)
+ax2 = ax1.twinx()  
+color = 'tab:red'
+ax2.set_ylabel('MSFT Carbon Emissions (mtCO2e)', color=color)  
+ax2.plot(merged_df['Year'], merged_df['Total Emissions (mtCO2e)'], marker='s', color=color, label='MSFT Emissions')
+ax2.tick_params(axis='y', labelcolor=color)
 
-corr_method = st.sidebar.radio(
-    "상관계수 종류",
-    options=["pearson", "spearman"],
-    format_func=lambda x: "피어슨 (선형 상관)" if x == "pearson" else "스피어만 (순위 상관)",
-)
+fig.tight_layout()  
+st.pyplot(fig)
 
-st.sidebar.markdown("---")
-st.sidebar.caption(
-    "⚠️ 분석 기간은 2019~2024년(6개 연도)으로, 표본 크기가 매우 작습니다. "
-    "상관계수는 참고용이며 인과관계를 의미하지 않습니다."
-)
-st.sidebar.caption(
-    "ℹ️ NVIDIA 매출은 회계연도(FY, 회계연도 마감 1월) 기준이고 "
-    "Microsoft 배출량은 보고연도 기준이라 정확한 캘린더 연도와는 약간의 시차가 있을 수 있습니다."
-)
+st.subheader("상관관계 분석")
+correlation = merged_df['데이터센터 매출 (백만 달러)'].corr(merged_df['Total Emissions (mtCO2e)'])
+st.write(f"**피어슨 상관계수 (Pearson Correlation Coefficient): {correlation:.4f}**")
 
-# ----------------------------------------------------------------------------
-# 타이틀 & 인트로
-# ----------------------------------------------------------------------------
-st.title("📊 NVIDIA 데이터센터 매출 × Microsoft 탄소 배출량 상관관계 분석")
-st.markdown(
-    """
-AI 붐을 이끄는 **NVIDIA의 데이터센터 매출**과, 그 AI 인프라를 대규모로 운용하는
-**Microsoft의 온실가스(GHG) 배출량**이 함께 움직이는지를 2019년~2024년 데이터로 살펴봅니다.
-"""
-)
+st.write("""
+* 상관계수가 1에 가까울수록 강한 양의 상관관계(매출이 오를 때 배출량도 오름)를 의미합니다.
+* 상관계수가 -1에 가까울수록 강한 음의 상관관계(매출이 오를 때 배출량은 감소함)를 의미합니다.
+""")
 
-# ----------------------------------------------------------------------------
-# 핵심 지표 카드
-# ----------------------------------------------------------------------------
-x = merged["nvidia_datacenter_revenue_musd"].values
-y = merged[ms_metric].values
-
-if corr_method == "pearson":
-    corr, p_value = stats.pearsonr(x, y)
-else:
-    corr, p_value = stats.spearmanr(x, y)
-
-col1, col2, col3 = st.columns(3)
-col1.metric("상관계수 (r)", f"{corr:.3f}")
-col2.metric("p-value", f"{p_value:.3f}")
-col3.metric("R² (설명력)", f"{corr**2:.3f}")
-
-if p_value < 0.05:
-    significance_text = "통계적으로 유의미한 상관관계가 관찰됩니다 (p < 0.05)."
-else:
-    significance_text = "통계적으로 유의미하다고 보기는 어렵습니다 (p ≥ 0.05). 표본이 6개뿐이라 해석에 주의가 필요합니다."
-
-if corr > 0.7:
-    strength_text = "강한 양의 상관관계"
-elif corr > 0.3:
-    strength_text = "중간 정도의 양의 상관관계"
-elif corr > -0.3:
-    strength_text = "거의 상관관계 없음"
-elif corr > -0.7:
-    strength_text = "중간 정도의 음의 상관관계"
-else:
-    strength_text = "강한 음의 상관관계"
-
-st.info(f"**해석:** {strength_text}로 나타납니다. {significance_text}")
-
-st.markdown("---")
-
-# ----------------------------------------------------------------------------
-# 탭 구성
-# ----------------------------------------------------------------------------
-tab1, tab2, tab3, tab4 = st.tabs(["📈 시계열 비교", "🔍 산점도 & 회귀선", "🧮 전체 지표 상관관계", "📋 원본 데이터"])
-
-# --- 탭 1: 시계열 비교 (이중 축) ---
-with tab1:
-    st.subheader("연도별 추이 비교 (이중 축)")
-
-    fig = go.Figure()
-    fig.add_trace(
-        go.Bar(
-            x=merged["year"],
-            y=merged["nvidia_datacenter_revenue_musd"],
-            name="NVIDIA 데이터센터 매출 (백만 달러)",
-            marker_color="#76B900",
-            yaxis="y1",
-        )
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=merged["year"],
-            y=merged[ms_metric],
-            name=f"Microsoft {MS_METRIC_LABELS[ms_metric]} (tCO2e)",
-            mode="lines+markers",
-            line=dict(color="#00A4EF", width=3),
-            marker=dict(size=9),
-            yaxis="y2",
-        )
-    )
-    fig.update_layout(
-        xaxis=dict(title="연도", dtick=1),
-        yaxis=dict(title="NVIDIA 매출 (백만 달러)", side="left"),
-        yaxis2=dict(title="Microsoft 배출량 (tCO2e)", overlaying="y", side="right"),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-        height=500,
-        hovermode="x unified",
-    )
-    st.plotly_chart(fig, use_container_width=True)
-
-# --- 탭 2: 산점도 & 회귀선 ---
-with tab2:
-    st.subheader("산점도 & 선형 회귀선")
-
-    slope, intercept, r_value, p_value_lr, std_err = stats.linregress(x, y)
-    line_x = np.linspace(x.min(), x.max(), 100)
-    line_y = slope * line_x + intercept
-
-    fig2 = go.Figure()
-    fig2.add_trace(
-        go.Scatter(
-            x=x,
-            y=y,
-            mode="markers+text",
-            text=merged["year"].astype(str),
-            textposition="top center",
-            marker=dict(size=12, color="#76B900"),
-            name="연도별 데이터",
-        )
-    )
-    fig2.add_trace(
-        go.Scatter(
-            x=line_x,
-            y=line_y,
-            mode="lines",
-            line=dict(color="#00A4EF", dash="dash"),
-            name=f"회귀선 (y = {slope:.2f}x + {intercept:,.0f})",
-        )
-    )
-    fig2.update_layout(
-        xaxis_title="NVIDIA 데이터센터 매출 (백만 달러)",
-        yaxis_title=f"Microsoft {MS_METRIC_LABELS[ms_metric]} (tCO2e)",
-        height=500,
-    )
-    st.plotly_chart(fig2, use_container_width=True)
-    st.caption(f"결정계수 R² = {r_value**2:.3f}")
-
-# --- 탭 3: 전체 지표 상관관계 히트맵 ---
-with tab3:
-    st.subheader("NVIDIA 매출 vs Microsoft 배출 지표 전체 상관관계")
-
-    corr_cols = ["nvidia_datacenter_revenue_musd"] + list(MS_METRIC_LABELS.keys())
-    corr_matrix = merged[corr_cols].corr(method=corr_method)
-
-    labels = ["NVIDIA 매출"] + [MS_METRIC_LABELS[c] for c in MS_METRIC_LABELS]
-
-    fig3 = go.Figure(
-        data=go.Heatmap(
-            z=corr_matrix.values,
-            x=labels,
-            y=labels,
-            colorscale="RdBu",
-            zmid=0,
-            text=np.round(corr_matrix.values, 2),
-            texttemplate="%{text}",
-        )
-    )
-    fig3.update_layout(height=550)
-    st.plotly_chart(fig3, use_container_width=True)
-
-# --- 탭 4: 원본 데이터 ---
-with tab4:
-    st.subheader("병합된 연간 데이터 (2019~2024)")
-    st.dataframe(merged, use_container_width=True)
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("**NVIDIA 분기별 데이터센터 매출**")
-        st.dataframe(nvidia_q, use_container_width=True)
-    with col_b:
-        st.markdown("**Microsoft 연간 온실가스 배출량**")
-        st.dataframe(ms_annual, use_container_width=True)
-
-    st.download_button(
-        "병합 데이터 CSV 다운로드",
-        merged.to_csv(index=False).encode("utf-8-sig"),
-        file_name="nvidia_microsoft_merged.csv",
-        mime="text/csv",
-    )
-
-st.markdown("---")
-st.caption(
-    "데이터 출처: NVIDIA 데이터센터 매출(분기 실적 발표 자료), "
-    "Microsoft 온실가스 배출량(Tracenable GHG Emissions 데이터, 2019~2024)."
-)
+fig2, ax_scatter = plt.subplots(figsize=(8, 6))
+sns.regplot(data=merged_df, x='데이터센터 매출 (백만 달러)', y='Total Emissions (mtCO2e)', ax=ax_scatter)
+ax_scatter.set_title("NVIDIA 매출 vs MSFT 탄소 배출량 산점도 및 회귀선")
+st.pyplot(fig2)
