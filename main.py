@@ -11,29 +11,38 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 데이터 로드 및 전처리 함수 (캐싱 적용으로 성능 최적화)
+# 2. 데이터 로드 및 전처리 함수 (CSV 전용 파싱으로 전면 리팩토링)
 @st.cache_data
 def load_and_preprocess_data():
-    # ---- (1) 마이크로소프트 탄소 배출 데이터 처리 ----
-    # 사용자가 리포지토리에 올려둔 엑셀 파일명 매칭
-    ms_file = 'tracenable-ghg-emissions-2019-2024-microsoft-20260617.xlsx'
-    df_ms_raw = pd.read_excel(ms_file)
+    # ---- (1) 마이크로소프트 탄소 배출 데이터 처리 (CSV 변환 파일 반영) ----
+    ms_file = 'tracenable-ghg-emissions-2019-2024-microsoft-20260617.xlsx - Sheet1.csv'
+    df_ms_raw = pd.read_csv(ms_file)
     
     years = [2019, 2020, 2021, 2022, 2023, 2024]
     ms_parsed = []
     
     for y in years:
+        # 해당 연도 데이터 필터링
+        df_year = df_ms_raw[df_ms_raw['reporting_period'] == y]
+        
         # Scope 1 (직접 배출)
-        s1 = df_ms_raw[(df_ms_raw['reporting_period'] == y) & (df_ms_raw['metric'] == 'Total Scope 1')]['value'].values[0]
+        s1_data = df_year[(df_year['metric'] == 'Total Scope 1') & (df_year['level'] == 'Total')]
+        s1 = s1_data['value'].values[0] if not s1_data.empty else 0
+        
         # Scope 2 (위치 기반 vs 시장 기반)
-        s2_loc = df_ms_raw[(df_ms_raw['reporting_period'] == y) & (df_ms_raw['metric'] == 'Total Scope 2') & (df_ms_raw['method'] == 'Location-based')]['value'].values[0]
-        s2_mkt = df_ms_raw[(df_ms_raw['reporting_period'] == y) & (df_ms_raw['metric'] == 'Total Scope 2') & (df_ms_raw['method'] == 'Market-based')]['value'].values[0]
+        s2_loc_data = df_year[(df_year['metric'] == 'Total Scope 2') & (df_year['method'] == 'Location-based')]
+        s2_loc = s2_loc_data['value'].values[0] if not s2_loc_data.empty else 0
+        
+        s2_mkt_data = df_year[(df_year['metric'] == 'Total Scope 2') & (df_year['method'] == 'Market-based')]
+        s2_mkt = s2_mkt_data['value'].values[0] if not s2_mkt_data.empty else 0
+        
         # Scope 3 (공급망 전체 배출)
-        s3_all = df_ms_raw[(df_ms_raw['reporting_period'] == y) & (df_ms_raw['metric'] == 'Total Scope 3')]
+        s3_all = df_year[(df_year['metric'] == 'Total Scope 3') & (df_year['level'] == 'Total')]
         if len(s3_all) > 1:
-            s3 = s3_all[s3_all['method'] == 'Market-based']['value'].values[0]
+            s3_mkt_f = s3_all[s3_all['method'] == 'Market-based']
+            s3 = s3_mkt_f['value'].values[0] if not s3_mkt_f.empty else s3_all['value'].values[0]
         else:
-            s3 = s3_all['value'].values[0]
+            s3 = s3_all['value'].values[0] if not s3_all.empty else 0
             
         ms_parsed.append({
             'Calendar_Year': y,
@@ -48,8 +57,7 @@ def load_and_preprocess_data():
     # ---- (2) 엔비디아 분기 매출 데이터 처리 ----
     df_nvda_raw = pd.read_csv('nvidia.csv')
     
-    # NVIDIA 회계분기(FY) 스트링에서 달력 연도(Calendar Year) 매칭 연산 고도화
-    # 예: 'Q1 FY24' -> 2023년 하반기~2024년 초에 걸쳐 있으므로 하드웨어 인프라 주기 고려해 매핑
+    # NVIDIA 회계분기(FY) 텍스트에서 달력 연도(Calendar Year) 매칭 연산
     def to_calendar_year(row):
         q_str = str(row['NVIDIA 회계분기'])
         fy_val = int(q_str.split('FY')[-1])
@@ -57,7 +65,7 @@ def load_and_preprocess_data():
 
     df_nvda_raw['Calendar_Year'] = df_nvda_raw.apply(to_calendar_year, axis=1)
     
-    # 연도별로 그룹화하여 데이터센터 총 매출액 연산 (백만 달러 -> 십억 달러 단위 변경)
+    # 연도별 데이터센터 총 매출액 합산 및 단위 변환 (백만 달러 -> 십억 달러)
     df_nvda_annual = df_nvda_raw.groupby('Calendar_Year')['데이터센터 매출 (백만 달러)'].sum().reset_index()
     df_nvda_annual['NVDA_데이터센터_매출_십억달러'] = df_nvda_annual['데이터센터 매출 (백만 달러)'] / 1000
 
@@ -70,7 +78,7 @@ def load_and_preprocess_data():
 try:
     df_ms, df_nvda_raw, df_combined = load_and_preprocess_data()
 except Exception as e:
-    st.error(f"⚠️ 리포지토리 내의 CSV/공시 엑셀 파일을 로드하는 중에 오류가 발생했습니다. 파일명을 다시 한번 확인해 주세요. 오류내용: {e}")
+    st.error(f"⚠️ 리포지토리 내의 CSV 데이터 파일을 로드하는 중에 오류가 발생했습니다. 파일명과 양식을 다시 확인해 주세요. 오류내용: {e}")
     st.stop()
 
 
@@ -100,9 +108,8 @@ if page == "🏠 프로젝트 소개 및 팀 정보":
     st.markdown("""
     <div style="background-color:#f1f3f6; padding:22px; border-radius:12px; margin-bottom: 25px; border-left: 5px solid #2E7D32;">
         <h4 style="margin-top:0; color:#2E7D32;">💡 분석 시스템 개발 개요</h4>
-        <p style="font-size: 15px; color:#333; line-height:1.6;">
-            챗GPT 출시 이후 가속화된 <b>생성형 AI 패러다임</b>은 초거대 데이터 센터 인프라의 폭발적인 확장을 요구하고 있습니다. 
-            이에 따라 빅테크 기업들이 선언했던 '2030 탄소 중립(Carbon Negative)' 선언에 비상등이 켜졌습니다. <br>
+        <p style="font-size: 15px; color:#333; line-height:1.6; margin-bottom:0;">
+            챗GPT 출시 이후 가속화된 <b>생성형 AI 패러다임</b>은 초거대 데이터 센터 인프라의 폭발적인 확장을 요구하고 있습니다. <br>
             본 시스템은 <b>AI 가속기(GPU) 하드웨어 시장을 독점하는 NVIDIA의 매출</b> 지표와 
             <b>글로벌 거대 클라우드 인프라를 운영하는 Microsoft의 실제 환경 공시 데이터</b>를 상호 매칭하여, 
             가속화되는 인공지능 혁신 속에 가려진 환경적 부담을 통계적·시각적으로 분석하고자 설계되었습니다.
@@ -113,10 +120,10 @@ if page == "🏠 프로젝트 소개 및 팀 정보":
     col_t1, col_t2 = st.columns(2)
     with col_t1:
         st.info("### 📂 활용 데이터셋 안내\n"
-                "1. **`tracenable-ghg-emissions-2019-2024-microsoft-20260617.xlsx`**\n"
-                "   - 마이크로소프트의 공식 지속가능성 보고서 기반 온실가스 데이터 파싱 (Scope 1, 2, 3)\n"
-                "2. **`nvidia.csv`**\n"
-                "   - 엔비디아의 분기별 실적 보고서(SEC Filings) 내 데이터센터 부문 핵심 매출액 정보")
+                "- **`tracenable-ghg-emissions-2019-2024-microsoft-20260617.xlsx - Sheet1.csv`**\n"
+                "  - 마이크로소프트 온실가스 공시 데이터 (Scope 1, 2, 3)\n"
+                "- **`nvidia.csv`**\n"
+                "  - 엔비디아 분기별 실적 보고서 내 데이터센터 부문 핵심 매출액 정보")
                 
     with col_t2:
         st.success("### 👥 연구 수행 팀원 및 역할\n"
@@ -136,7 +143,6 @@ elif page == "📊 [Page 1] MSFT 탄소 배출 분석":
     st.title("📊 [Page 1] 마이크로소프트(MSFT) 온실가스 배출 심층 분석")
     st.markdown("마이크로소프트의 공시 데이터를 기반으로 연도별 직접·간접 탄소 배출 추이를 추적합니다.")
     
-    # 최신 연도 기준 KPI 메트릭 계산
     latest_row = df_ms.iloc[-1]
     prev_row = df_ms.iloc[0]
     
@@ -144,21 +150,21 @@ elif page == "📊 [Page 1] MSFT 탄소 배출 분석":
     with kpi1:
         st.metric(
             label="2024년 총 배출량 (시장 기반 장부 기준)", 
-            value=f"{latest_row['Total_Carbon_Market']:,} mtCO2e",
+            value=f"{int(latest_row['Total_Carbon_Market']):,} mtCO2e",
             delta=f"2019년 대비 {((latest_row['Total_Carbon_Market']/prev_row['Total_Carbon_Market'])-1)*100:.1f}% 증가",
             delta_color="inverse"
         )
     with kpi2:
         st.metric(
             label="2024년 실제 전력 그리드 부하 (위치 기반 Scope 2)", 
-            value=f"{latest_row['Scope 2 (위치 기반-실제 전력망']:,} mtCO2e",
+            value=f"{int(latest_row['Scope 2 (위치 기반-실제 전력망)']):,} mtCO2e",
             delta=f"2019년 대비 {((latest_row['Scope 2 (위치 기반-실제 전력망)']/prev_row['Scope 2 (위치 기반-실제 전력망)'])-1)*100:.1f}% 증가",
             delta_color="inverse"
         )
     with kpi3:
         st.metric(
             label="2024년 공급망 전체 간접 배출 (Scope 3)", 
-            value=f"{latest_row['Scope 3 (공급망/가치사슬)'].iloc[-1]:,} mtCO2e" if isinstance(latest_row['Scope 3 (공급망/가치사슬)'], pd.Series) else f"{latest_row['Scope 3 (공급망/가치사슬)']:,} mtCO2e"
+            value=f"{int(latest_row['Scope 3 (공급망/가치사슬)']):,} mtCO2e"
         )
 
     # 시각화 1: 세부 스코프 누적 막대 그래프
@@ -173,6 +179,7 @@ elif page == "📊 [Page 1] MSFT 탄소 배출 분석":
         labels={'Calendar_Year': '연도'},
         color_discrete_sequence=['#42A5F5', '#66BB6A', '#FFA726']
     )
+    fig_bar.update_layout(xaxis=dict(type='category'))
     st.plotly_chart(fig_bar, use_container_width=True)
 
     # 시각화 2: 전력 매칭 격차 트렌드
@@ -185,7 +192,7 @@ elif page == "📊 [Page 1] MSFT 탄소 배출 분석":
     fig_line = go.Figure()
     fig_line.add_trace(go.Scatter(x=df_ms['Calendar_Year'], y=df_ms['Scope 2 (위치 기반-실제 전력망)'], name='위치 기반 (실제 그리드 탄소 유출)', line=dict(color='#E53935', width=4)))
     fig_line.add_trace(go.Scatter(x=df_ms['Calendar_Year'], y=df_ms['Scope 2 (시장 기반-계약 상쇄)'], name='시장 기반 (장부 계약상 상쇄 배출)', line=dict(color='#1E88E5', width=4, dash='dash')))
-    fig_line.update_layout(title='인프라 폭증에 따른 전력 탄소 디커플링 현상', xaxis_title='연도', yaxis_title='배출량 (mtCO2e)')
+    fig_line.update_layout(title='인프라 폭증에 따른 전력 탄소 디커플링 현상', xaxis_title='연도', yaxis_title='배출량 (mtCO2e)', xaxis=dict(type='category'))
     st.plotly_chart(fig_line, use_container_width=True)
 
     st.subheader("📋 Microsoft 온실가스 전처리 데이터 요약")
@@ -199,7 +206,6 @@ elif page == "📈 [Page 2] NVDA 매출-탄소배출 상관분석":
     st.title("📈 [Page 2] NVIDIA 매출 성장과 MSFT 탄소 발자국 상관관계 분석")
     st.markdown("하드웨어 공급 인프라의 성장 곡선이 대형 하이퍼스케일러의 전력 환경 지표와 어떤 흐름으로 맞물리는지 분석합니다.")
 
-    # 세부 탭 분할 구성 (NVIDIA 단독 분기 매출 + 결합 이중축 분석)
     sub_tab1, sub_tab2 = st.tabs(["🎮 NVIDIA 분기별 매출 분석", "📊 하드웨어 매출-탄소배출 융합 분석"])
     
     with sub_tab1:
@@ -210,12 +216,11 @@ elif page == "📈 [Page 2] NVDA 매출-탄소배출 상관분석":
             markers=True, color_discrete_sequence=['#76B900']
         )
         st.plotly_chart(fig_nvda_quarter, use_container_width=True)
-        st.caption("※ 2022년 말(FY23~FY24 구간) ChatGPT 등장 이후 급격하게 꺾여 올라가는 수직성장 패턴 확인 가능.")
+        st.caption("※ 2022년 말(FY23~FY24 구간) ChatGPT 등장 이후 수직성장하는 패턴 확인 가능.")
         
     with sub_tab2:
         st.subheader("AI 공급(NVIDIA 매출) vs 인프라 실제 가동 부하(MSFT 전력배출)")
         
-        # 이중 축(Dual-axis) 차트 생성
         fig_dual = make_subplots(specs=[[{"secondary_y": True}]])
         
         # 바 차트: 엔비디아 연간 데이터센터 매출
@@ -237,6 +242,7 @@ elif page == "📈 [Page 2] NVDA 매출-탄소배출 상관분석":
         fig_dual.update_layout(
             title_text="<b>NVIDIA 인프라 공급 실적과 MSFT 전력 소모 온실가스의 시계열 동기화 추세</b>",
             xaxis_title="연도 (Calendar Year)",
+            xaxis=dict(type='category'),
             legend=dict(x=0.01, y=0.99)
         )
         
@@ -245,7 +251,7 @@ elif page == "📈 [Page 2] NVDA 매출-탄소배출 상관분석":
         
         st.plotly_chart(fig_dual, use_container_width=True)
         
-        # 피어슨 상관계수 통계 연산 및 인사이트 리포트 위젯
+        # 피어슨 상관계수 통계 연산
         corr_coef = df_combined['NVDA_DC_Revenue_Billion'].corr(df_combined['MSFT_Scope2_Location'])
         
         st.markdown("---")
@@ -263,7 +269,7 @@ elif page == "📈 [Page 2] NVDA 매출-탄소배출 상관분석":
             
         with c_box2:
             st.markdown(f"""
-            1. **강한 양의 선형 상관관계**: 상관계수가 **{corr_coef:.3f}**라는 수치는 두 통계 변수가 거의 완벽히 비례하여 움직이고 있음을 입증합니다.
+            1. **강한 양의 선형 상관관계**: 상관계수가 **{corr_coef:.3f}**라는 수치는 두 통계 변수가 매우 강력하게 비례하여 성장하고 있음을 증명합니다.
             2. **인프라 폭발의 동기화 현상**: 엔비디아의 하드웨어 공급 가속화 시점(2022~2024년)과 마이크로소프트의 실제 발전 그리드 소모량(Scope 2 Location-based)의 폭증 시점이 명확하게 맞물려 떨어집니다.
             3. **지속가능성 선언의 장벽**: 서류상 상쇄(Market-based) 계약을 적극적으로 진행하더라도, 실제 인프라 확장으로 가해지는 물리적인 전력 사용 리스크는 고성능 하드웨어 수요 성장 곡선에 직결되어 증가함을 시사합니다.
             """)
@@ -275,7 +281,7 @@ elif page == "📈 [Page 2] NVDA 매출-탄소배출 상관분석":
                 '데이터센터 매출 (백만 달러)': '{:,} $M',
                 'NVDA_DC_Revenue_Billion': '{:.2f} $B',
                 'MSFT_Scope2_Location': '{:,} mtCO2e',
-                'MSFT_Scope2_Market-based': '{:,} mtCO2e',
-                'MSFT_Scope3': '{:,} mtCO2e'
+                'Scope 2 (시장 기반-계약 상쇄)': '{:,} mtCO2e',
+                'Scope 3 (공급망/가치사슬)': '{:,} mtCO2e'
             }), use_container_width=True
         )
