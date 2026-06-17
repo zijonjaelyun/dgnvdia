@@ -2,8 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
-st.set_page_config(page_title="상관관계 분석", page_icon="🔍", layout="wide")
-
+st.set_page_config(page_title="상관관계 분석", layout="wide")
 # --- 데이터 불러오기 함수 (main.py와 동일하게 유지) ---
 def read_csv_robust(filepath):
     encodings = ['utf-8', 'utf-8-sig', 'cp949', 'euc-kr', 'latin1']
