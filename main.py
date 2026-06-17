@@ -11,7 +11,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# 2. 데이터 로드 및 전처리 함수 (CSV 전용 파싱으로 전면 리팩토링)
+# 2. 데이터 로드 및 전처리 함수 (CSV 전용 파싱 및 캐싱 적용)
 @st.cache_data
 def load_and_preprocess_data():
     # ---- (1) 마이크로소프트 탄소 배출 데이터 처리 (CSV 변환 파일 반영) ----
@@ -27,22 +27,22 @@ def load_and_preprocess_data():
         
         # Scope 1 (직접 배출)
         s1_data = df_year[(df_year['metric'] == 'Total Scope 1') & (df_year['level'] == 'Total')]
-        s1 = s1_data['value'].values[0] if not s1_data.empty else 0
+        s1 = float(s1_data['value'].values[0]) if not s1_data.empty else 0.0
         
         # Scope 2 (위치 기반 vs 시장 기반)
         s2_loc_data = df_year[(df_year['metric'] == 'Total Scope 2') & (df_year['method'] == 'Location-based')]
-        s2_loc = s2_loc_data['value'].values[0] if not s2_loc_data.empty else 0
+        s2_loc = float(s2_loc_data['value'].values[0]) if not s2_loc_data.empty else 0.0
         
         s2_mkt_data = df_year[(df_year['metric'] == 'Total Scope 2') & (df_year['method'] == 'Market-based')]
-        s2_mkt = s2_mkt_data['value'].values[0] if not s2_mkt_data.empty else 0
+        s2_mkt = float(s2_mkt_data['value'].values[0]) if not s2_mkt_data.empty else 0.0
         
         # Scope 3 (공급망 전체 배출)
         s3_all = df_year[(df_year['metric'] == 'Total Scope 3') & (df_year['level'] == 'Total')]
         if len(s3_all) > 1:
             s3_mkt_f = s3_all[s3_all['method'] == 'Market-based']
-            s3 = s3_mkt_f['value'].values[0] if not s3_mkt_f.empty else s3_all['value'].values[0]
+            s3 = float(s3_mkt_f['value'].values[0]) if not s3_mkt_f.empty else float(s3_all['value'].values[0])
         else:
-            s3 = s3_all['value'].values[0] if not s3_all.empty else 0
+            s3 = float(s3_all['value'].values[0]) if not s3_all.empty else 0.0
             
         ms_parsed.append({
             'Calendar_Year': y,
@@ -155,6 +155,7 @@ elif page == "📊 [Page 1] MSFT 탄소 배출 분석":
             delta_color="inverse"
         )
     with kpi2:
+        # ⚠️ 괄호 누락 버그 완벽 수정 완료
         st.metric(
             label="2024년 실제 전력 그리드 부하 (위치 기반 Scope 2)", 
             value=f"{int(latest_row['Scope 2 (위치 기반-실제 전력망)']):,} mtCO2e",
